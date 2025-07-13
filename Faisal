@@ -1,0 +1,335 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Transactions;
+
+
+class BankSystem
+{
+    public abstract class Person {   //Abstract class 1- Cannot create object directly 2- Base class for customer 
+        public Person(string name, int age)
+        {
+            SetName(name);                                          // insted of this this.name = name; this.age = age; we will use method set allowing to make if else statments and make conditons 
+            SetAge(age);
+        }
+
+        private string name;     //Encapsulation Private data type 1- hide internal data 2- controll access using getter and setter
+        private int age;
+        public void SetName(string value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                name = value;
+            else
+                throw new ArgumentException("Name cannot be empty");
+
+        }
+        public void SetAge(int value)
+        {
+            if (value >= 18)
+                age = value;
+            else
+                throw new ArgumentException("Age must be at least 18");
+        }
+
+
+      
+
+        public int GetAge() { return age; }
+        public string GetName() { return name; }
+        public override string ToString()                     // Ploymorphism override ToString method
+        {
+            return $"Name: {name}, Age: {age}";
+        }
+    }
+    public class Transaction {
+        private string TypeTransaction;
+        private double Amount;
+        private DateTime Data;
+        public Transaction(string TypeTransaction, double Amount)
+        {
+           SetTypeTransaction(TypeTransaction);
+            SetAmount(Amount);
+            SetDate(DateTime.Now);
+            
+        }
+        public void SetTypeTransaction(string value)
+        {
+            TypeTransaction = value;
+
+        }
+        public void SetAmount(double value)
+        {
+            Amount = value;
+        }
+        public void SetDate(DateTime value)
+        {
+            Data = value;
+        }
+        public string GetTypeTransaction()
+        {
+            return TypeTransaction;
+        }
+        public double GetAmount()
+        {
+            return Amount;
+        }
+     
+        public DateTime GetDate()
+        {
+            return Data;
+        }
+        public override string ToString()
+        {
+            return $"{Data:G} - {TypeTransaction}: {Amount:C}";
+        }
+    }
+
+    public class Customer : Person {   //Inheritance 
+        private double balance;
+        private List<Transaction> transactions;
+
+        public delegate void TransactionAlert(string message);        //Delegate for notify user when transaction occur
+        public TransactionAlert alert;
+        public void SetBalance(double value)
+        {
+            balance = value;
+        }
+        public double GetBalance()
+        {
+            return balance;
+        }
+        public Customer(string name, int age) : base(name, age)   //Customer constructor which also take from base constructor 
+        {
+           // balance = 0.0;
+            transactions = new List<Transaction>();
+        }
+        public void Deposit(double amount)
+        {
+            if (amount > 0)
+            {
+                balance += amount;
+                transactions.Add(new Transaction("Deposit", amount));
+                if (alert != null)
+                {
+                    alert("Deposit Successful!");
+                }
+            }
+            else
+            {
+                throw new ArgumentException("Deposit amount must be positive.");
+            }
+        }
+        public void Withdraw(double amount)
+        {
+            if (amount > 0 && amount <= balance)
+            {
+                balance -= amount;
+                transactions.Add(new Transaction("Withdraw", amount));
+                alert?.Invoke($"Withdrawal of {amount:C} successful.");
+            }
+            else
+            {
+                throw new ArgumentException("Invalid amount or insufficient balance.");
+            }
+        }
+        public List<Transaction> GetTransactionHistory()
+        {
+            return transactions;
+        }
+        public void SetTransactionHistory(List<Transaction> value)
+        {
+            if (value != null)
+            {
+                transactions = value;
+            }
+            else
+            {
+                transactions = new List<Transaction>();
+            }
+        }
+        public List<Transaction> FilterTransactionsByType(string type)
+        {
+            var result = from t in transactions
+            where t.GetTypeTransaction().Equals(type, StringComparison.OrdinalIgnoreCase)
+            select t;
+            return result.ToList();
+        }
+        public List<Transaction> FilterTransactionsBetweenDates(DateTime startDate, DateTime endDate)
+        {
+            var result = from t in transactions
+            where t.GetDate().Date >= startDate.Date && t.GetDate().Date <= endDate.Date
+            select t;
+            return result.ToList();
+        }
+
+
+
+
+    }
+    public class Account
+    {
+      
+        private string AccountNumber;
+        private Customer owner;
+      
+
+
+        public Account(string AccountNumber, Customer owner)
+        {
+            this.AccountNumber = AccountNumber;
+            this.owner = owner;
+        }
+        public string getAccount()
+        {
+            return AccountNumber;
+        }
+        public void setAccount(string value)
+        {
+           AccountNumber = value;
+        }
+        public Customer getOwner()
+        {
+            return owner;
+        }
+        public void SetOwner(Customer value)
+        {
+            owner = value;
+        }
+      
+        public string GetAccountNumber()
+        {
+            return AccountNumber;
+        }
+        public void CreateAccountFile()
+        {
+            string path = $"data/{AccountNumber}.txt";
+            Directory.CreateDirectory("data");
+            string content = $"Account Number: {AccountNumber}\n";
+            content += $"Owner: {owner.GetName()}\n";
+            content += $"Age: {owner.GetAge()}\n";
+            content += $"Balance: {owner.GetBalance():C}\n";
+            content += "Transactions:\n";
+
+            foreach (var t in owner.GetTransactionHistory())
+            {
+                content += t.ToString() + "\n";
+            }
+
+            File.WriteAllText(path, content); // writes all content to the file
+        
+
+    }
+        public static void ReadAccountFile(string AccountNumber)
+        {
+            string path = $"data/{AccountNumber}.txt";
+
+            if (File.Exists(path))
+            {
+                string content = File.ReadAllText(path);
+                Console.WriteLine(content);
+            }
+            else
+            {
+                Console.WriteLine("Account file not found.");
+            }
+        }
+        public void UpdateAccountFile()
+        {
+            string path = $"data/{AccountNumber}.txt";
+            Directory.CreateDirectory("data");
+
+
+            string content = $"Account Number: {AccountNumber}\n";
+            content += $"Owner: {owner.GetName()}\n";
+            content += $"Age: {owner.GetAge()}\n";
+            content += $"Balance: {owner.GetBalance():C}\n";
+            content += "Transactions:\n";
+
+            foreach (var t in owner.GetTransactionHistory())
+            {
+                content += t.ToString() + "\n";
+            }
+
+            File.WriteAllText(path, content); 
+        }
+        public override string ToString()
+        {
+            return $"Account Number: {AccountNumber}, Owner: {owner.GetName()}";
+        }
+    }
+        
+    }
+    public class BankData<T> { 
+        private List<T> data = new List<T>();
+        public void Add(T item)
+        {
+            data.Add(item);
+        }
+        public void Remove(T item) {
+            data.Remove(item);
+        }
+        public List<T> GetAll()
+        {
+            return new List<T>(data); // return copy for safety
+        }
+        public int Count()
+        {
+            return data.Count;
+        }
+    public void SaveToFile(string path)
+    {
+        try
+        {
+            // Clear the file first
+            File.WriteAllText(path, "");
+
+            foreach (var item in data)
+            {
+                File.AppendAllText(path, item.ToString() + "\n"); // One line per item
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error saving file: " + ex.Message);
+        }
+    }
+
+    public void LoadFromFile(string path, Func<string, T> parser)
+    {
+        data.Clear(); // Remove any old items
+
+        if (File.Exists(path))
+        {
+            string[] lines = File.ReadAllLines(path); // Read all lines from the file
+
+            foreach (string line in lines)
+            {
+                if (line != "") // Make sure line is not empty
+                {
+                    T item = parser(line); // Turn line into object
+                    data.Add(item);        // Add to list
+                }
+            }
+        }
+        else
+        {
+            Console.WriteLine("File not found.");
+        }
+    }
+   
+    
+
+
+    public static void Main(string[] args)
+    {
+
+
+    }
+
+
+}
+
