@@ -1,15 +1,15 @@
 using System;
-using System.Collections.Generic; // for lists
-using System.IO;                  // for file reading/writing
-using System.Linq;                // searching/filtering
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 // تعريف الديليجيت للتنبيه بعد العمليات
-public delegate void TransactionAlert(string message); // Delegate to print message
+public delegate void TransactionAlert(string message);
 
 class Person
 {
-    private string name { get; set; }
-    private int age { get; set; }
+    private string name;
+    private int age;
 
     public string Name
     {
@@ -31,10 +31,7 @@ class Person
             age = value;
         }
     }
-        
-    
 }
-
 
 class Customer : Person
 {
@@ -49,40 +46,12 @@ class Customer : Person
             if (value < 0)
                 throw new Exception("Balance cannot be less than 0");
             balance = value;
-
         }
     }
 
     public override string ToString() =>
         $"Customer: {Name}, Age: {Age}, Balance: {Balance}";
 }
-
-class Account
-
-{
-    private string accountNumber;
-    public string AccountNumber
-    {
-        get { return AccountNumber; }
-        set
-        {
-            AccountNumber = value;
-        }
-    }
-    private Customer owner;
-    public Customer  Owner{
-        get { return owner; }
-        set
-        {
-            owner = value; 
-        }
-
-        }
-    
-    
-    
-}
-
 
 class Transaction
 {
@@ -111,41 +80,87 @@ class Transaction
     public override string ToString() =>
         $"{Date:yyyy-MM-dd HH:mm} - {Type} - {Amount}";
 }
-class BankData<T>    // Generics
+
+class BankData<T>
 {
-    public List<T> Items { get; set; } = new List<T>();     //here we create new list
-    public void AddItem(T item) => Items.Add(item);         //here we add items in the list we created
-    public List<T> GetAll() => Items;                       //here we return all the items in the list
+    public List<T> Items { get; set; } = new List<T>();
+    public void AddItem(T item) => Items.Add(item);
+    public List<T> GetAll() => Items;
 }
 
 class Program
 {
-    static BankData<Customer> customers = new BankData<Customer>();     //this is object from the main class (BankData) ; his job is save list contains all the costumers in the bank
-    static string filePath = "accounts.txt";                             
-    static TransactionAlert alert = ShowMessage;                        // هنا نربط الديليقيت اللي سويناه فوق بداله اسمها شوماسج .هذا يعني كل مره يصير سحب او ايداع راح تنفذ دالة شوماسج
-    static int nextAccountNumber = 10000001; 
+    static BankData<Customer> customers = new BankData<Customer>();
+    static string filePath = "accounts.txt";
+    static TransactionAlert alert = ShowMessage;
+    static int nextAccountNumber = 10000001;
+    static bool isAdmin = false;
 
     static void Main()
     {
-        LoadAccounts();     // Loads accounts from file at start
+        LoadAccounts();
+        
         while (true)
         {
-            Console.WriteLine("\n1. Create new account\n2. Deposit\n3. Withdraw\n4. Show balance\n5. Save accounts\n6. Filter transactions\n7. Calculate Totals\n8. Group transactions\n9. Exit");
+            // اختيار نوع المستخدم
+            Console.WriteLine("\n=== BANK SYSTEM ===");
+            Console.WriteLine("1. Customer Login");
+            Console.WriteLine("2. Admin Login");
+            Console.WriteLine("3. Exit");
             Console.Write("Choose: ");
+            
             string choice = Console.ReadLine();
+            
+            switch (choice)
+            {
+                case "1":
+                    isAdmin = false;
+                    ShowCustomerMenu();
+                    break;
+                case "2":
+                    isAdmin = true;
+                    ShowAdminMenu();
+                    break;
+                case "3":
+                    SaveAccounts();
+                    return;
+                default:
+                    Console.WriteLine("Invalid choice");
+                    break;
+            }
+        }
+    }
+
+    // قائمة الإدارة البسيطة
+    static void ShowAdminMenu()
+    {
+        Console.WriteLine("\n=== ADMIN MENU ===");
+        Console.WriteLine("Welcome Admin!");
+        
+        while (true)
+        {
+            Console.WriteLine("\n1. View all accounts");
+            Console.WriteLine("2. View all transactions");
+            Console.WriteLine("3. Search customer by name");
+            Console.WriteLine("4. Search customer by account number");
+            Console.WriteLine("5. Filter transactions");
+            Console.WriteLine("6. Calculate totals");
+            Console.WriteLine("7. Back to main menu");
+            Console.Write("Choose: ");
+            
+            string choice = Console.ReadLine();
+            
             try
             {
                 switch (choice)
                 {
-                    case "1": CreateAccount(); break;
-                    case "2": Deposit(); break;
-                    case "3": Withdraw(); break;
-                    case "4": ShowBalance(); break;
-                    case "5": SaveAccounts(); break;
-                    //case "6": FilterTransactions(); break;
-                    //case "7": CalculateTotals(); break;
-                    //case "8": GroupTransactions(); break;
-                    case "9": SaveAccounts(); return;
+                    case "1": ViewAllAccounts(); break;
+                    case "2": ViewAllTransactions(); break;
+                    case "3": SearchCustomerByName(); break;
+                    case "4": SearchCustomerByAccount(); break;
+                    case "5": FilterTransactions(); break;
+                    case "6": CalculateTotals(); break;
+                    case "7": return;
                     default: Console.WriteLine("Invalid choice"); break;
                 }
             }
@@ -156,18 +171,138 @@ class Program
         }
     }
 
+    // قائمة العميل
+    static void ShowCustomerMenu()
+    {
+        Console.WriteLine("\n=== CUSTOMER MENU ===");
+        
+        while (true)
+        {
+            Console.WriteLine("\n1. Create new account");
+            Console.WriteLine("2. Deposit");
+            Console.WriteLine("3. Withdraw");
+            Console.WriteLine("4. Show balance");
+            Console.WriteLine("5. Back to main menu");
+            Console.Write("Choose: ");
+            
+            string choice = Console.ReadLine();
+            
+            try
+            {
+                switch (choice)
+                {
+                    case "1": CreateAccount(); break;
+                    case "2": Deposit(); break;
+                    case "3": Withdraw(); break;
+                    case "4": ShowBalance(); break;
+                    case "5": return;
+                    default: Console.WriteLine("Invalid choice"); break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
+    }
+
+    // عرض جميع الحسابات (للإدارة)
+    static void ViewAllAccounts()
+    {
+        Console.WriteLine("\n=== ALL ACCOUNTS ===");
+        if (customers.GetAll().Count == 0)
+        {
+            Console.WriteLine("No accounts found.");
+            return;
+        }
+        
+        foreach (var customer in customers.GetAll())
+        {
+            Console.WriteLine($"Name: {customer.Name}, Account: {customer.AccountNumber}, Balance: {customer.Balance}");
+        }
+        Console.WriteLine($"Total Accounts: {customers.GetAll().Count}");
+    }
+
+    // عرض جميع المعاملات (للإدارة)
+    static void ViewAllTransactions()
+    {
+        Console.WriteLine("\n=== ALL TRANSACTIONS ===");
+        var allTransactions = customers.GetAll()
+            .SelectMany(c => c.Transactions.Select(t => new { Customer = c.Name, Transaction = t }))
+            .OrderByDescending(x => x.Transaction.Date)
+            .ToList();
+            
+        if (allTransactions.Count == 0)
+        {
+            Console.WriteLine("No transactions found.");
+            return;
+        }
+        
+        foreach (var item in allTransactions)
+        {
+            Console.WriteLine($"{item.Customer}: {item.Transaction}");
+        }
+        Console.WriteLine($"Total Transactions: {allTransactions.Count}");
+    }
+
+    // البحث عن عميل بالاسم (للإدارة)
+    static void SearchCustomerByName()
+    {
+        Console.Write("Enter Customer Name: ");
+        string name = Console.ReadLine();
+        
+        var customer = customers.GetAll().FirstOrDefault(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (customer == null)
+        {
+            Console.WriteLine("Customer not found.");
+            return;
+        }
+        
+        Console.WriteLine("\n=== CUSTOMER DETAILS ===");
+        Console.WriteLine(customer);
+        Console.WriteLine("Transaction History:");
+        foreach (var transaction in customer.Transactions.OrderByDescending(t => t.Date))
+        {
+            Console.WriteLine($"  {transaction}");
+        }
+    }
+
+    // البحث عن عميل برقم الحساب (للإدارة)
+    static void SearchCustomerByAccount()
+    {
+        Console.Write("Enter Account Number: ");
+        string accountNumber = Console.ReadLine();
+        
+        var customer = customers.GetAll().FirstOrDefault(c => c.AccountNumber == accountNumber);
+        if (customer == null)
+        {
+            Console.WriteLine("Customer not found.");
+            return;
+        }
+        
+        Console.WriteLine("\n=== CUSTOMER DETAILS ===");
+        Console.WriteLine(customer);
+        Console.WriteLine("Transaction History:");
+        foreach (var transaction in customer.Transactions.OrderByDescending(t => t.Date))
+        {
+            Console.WriteLine($"  {transaction}");
+        }
+    }
+
     // إنشاء حساب جديد
     static void CreateAccount()
     {
         Console.Write("Customer name: ");
         string name = Console.ReadLine();
         Console.Write("Age: ");
-        if (!int.TryParse(Console.ReadLine(), out int age))  //(TryPars) try to change the text that user write to integer and if he write wrong like (عشرين) will Exception ans show message
+        if (!int.TryParse(Console.ReadLine(), out int age))
             throw new Exception("Invalid age");
-        string accountNumber = (nextAccountNumber++).ToString(); // Generate unique account number
+            
+        string accountNumber = (nextAccountNumber++).ToString();
         var customer = new Customer { Name = name, Age = age, Balance = 0, AccountNumber = accountNumber };
         customers.AddItem(customer);
-        alert?.Invoke($"Account created successfully! Your Account Number is: {accountNumber}");
+        alert?.Invoke($"Account created successfully! Account Number: {accountNumber}");
+        SaveAccounts();
     }
 
     // إيداع
@@ -177,9 +312,11 @@ class Program
         Console.Write("Amount: ");
         if (!decimal.TryParse(Console.ReadLine(), out decimal amount) || amount <= 0)
             throw new Exception("Invalid amount");
+            
         customer.Balance += amount;
         customer.Transactions.Add(new Transaction { Date = DateTime.Now, Type = "Deposit", Amount = amount });
         alert?.Invoke("Deposit successful!");
+        SaveAccounts();
     }
 
     // سحب
@@ -189,11 +326,14 @@ class Program
         Console.Write("Amount: ");
         if (!decimal.TryParse(Console.ReadLine(), out decimal amount) || amount <= 0)
             throw new Exception("Invalid amount");
+            
         if (amount > customer.Balance)
             throw new Exception("Insufficient balance");
+            
         customer.Balance -= amount;
         customer.Transactions.Add(new Transaction { Date = DateTime.Now, Type = "Withdraw", Amount = amount });
         alert?.Invoke("Withdraw successful!");
+        SaveAccounts();
     }
 
     // عرض الرصيد والمعاملات
@@ -202,20 +342,21 @@ class Program
         var customer = FindCustomer();
         Console.WriteLine(customer);
         Console.WriteLine("Transaction history:");
-        foreach (var t in customer.Transactions)
+        foreach (var t in customer.Transactions.OrderByDescending(t => t.Date))
             Console.WriteLine(t);
     }
 
-    // البحث عن عميل بالاسم (LINQ)
+    // البحث عن عميل
     static Customer FindCustomer()
     {
         Console.Write("Search by (1) Name or (2) Account Number? ");
         string option = Console.ReadLine();
+        
         if (option == "1")
         {
             Console.Write("Customer name: ");
             string name = Console.ReadLine();
-            var customer = customers.GetAll().FirstOrDefault(c => c.Name == name);
+            var customer = customers.GetAll().FirstOrDefault(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
             if (customer == null)
                 throw new Exception("Customer not found");
             return customer;
@@ -238,50 +379,130 @@ class Program
     // حفظ الحسابات في ملف نصي
     static void SaveAccounts()
     {
-        using (var sw = new StreamWriter(filePath))                // Streams
+        try
         {
-            foreach (var c in customers.GetAll())
+            using (var sw = new StreamWriter(filePath))
             {
-                sw.WriteLine($"{c.Name}|{c.Age}|{c.AccountNumber}|{c.Balance}|{string.Join(";", c.Transactions.Select(t => $"{t.Date:O},{t.Type},{t.Amount}"))}");
+                foreach (var c in customers.GetAll())
+                {
+                    sw.WriteLine($"{c.Name}|{c.Age}|{c.AccountNumber}|{c.Balance}|{string.Join(";", c.Transactions.Select(t => $"{t.Date:O},{t.Type},{t.Amount}"))}");
+                }
             }
+            alert?.Invoke("Accounts saved to file.");
         }
-        alert?.Invoke("Accounts saved to file.");
+        catch (IOException ex)
+        {
+            Console.WriteLine($"File error: {ex.Message}");
+        }
     }
 
     // تحميل الحسابات من ملف نصي
     static void LoadAccounts()
     {
         if (!File.Exists(filePath)) return;
-        foreach (var line in File.ReadAllLines(filePath))               // streams
+        
+        try
         {
-            var parts = line.Split('|');
-            var customer = new Customer
+            foreach (var line in File.ReadAllLines(filePath))
             {
-                Name = parts[0],
-                Age = int.Parse(parts[1]),
-                AccountNumber = parts[2],
-                Balance = decimal.Parse(parts[3])
-            };
-            // ثم نفس كود المعاملات
-            if (parts.Length > 4 && !string.IsNullOrWhiteSpace(parts[4]))
-            {
-                foreach (var t in parts[4].Split(';'))
+                var parts = line.Split('|');
+                var customer = new Customer
                 {
-                    var tparts = t.Split(',');
-                    customer.Transactions.Add(new Transaction
+                    Name = parts[0],
+                    Age = int.Parse(parts[1]),
+                    AccountNumber = parts[2],
+                    Balance = decimal.Parse(parts[3])
+                };
+                
+                if (parts.Length > 4 && !string.IsNullOrWhiteSpace(parts[4]))
+                {
+                    foreach (var t in parts[4].Split(';'))
                     {
-                        Date = DateTime.Parse(tparts[0]),
-                        Type = tparts[1],
-                        Amount = decimal.Parse(tparts[2])
-                    });
+                        var tparts = t.Split(',');
+                        customer.Transactions.Add(new Transaction
+                        {
+                            Date = DateTime.Parse(tparts[0]),
+                            Type = tparts[1],
+                            Amount = decimal.Parse(tparts[2])
+                        });
+                    }
                 }
+                customers.AddItem(customer);
             }
-            customers.AddItem(customer);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading accounts: {ex.Message}");
         }
     }
-    
-    
-    
 
-    static void ShowMessage(string msg) => Console.WriteLine($"[Alert] {msg}");   //delegate
-}
+    // فلترة المعاملات
+    static void FilterTransactions()
+    {
+        var customer = FindCustomer();
+        Console.WriteLine("Filter by: 1) Date  2) Type");
+        string option = Console.ReadLine();
+
+        if (option == "1")
+        {
+            Console.Write("Enter date (yyyy-MM-dd): ");
+            string dateInput = Console.ReadLine();
+            if (DateTime.TryParse(dateInput, out DateTime date))
+            {
+                var filtered = customer.Transactions
+                    .Where(t => t.Date.Date == date.Date)
+                    .ToList();
+
+                Console.WriteLine($"Transactions on {date:yyyy-MM-dd}:");
+                foreach (var t in filtered)
+                    Console.WriteLine(t);
+
+                if (filtered.Count == 0)
+                    Console.WriteLine("No transactions found for this date.");
+            }
+            else
+            {
+                Console.WriteLine("Invalid date format.");
+            }
+        }
+        else if (option == "2")
+        {
+            Console.Write("Enter type (Deposit/Withdraw): ");
+            string type = Console.ReadLine();
+            var filtered = customer.Transactions
+                .Where(t => t.Type.Equals(type, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            Console.WriteLine($"Transactions of type '{type}':");
+            foreach (var t in filtered)
+                Console.WriteLine(t);
+
+            if (filtered.Count == 0)
+                Console.WriteLine("No transactions found for this type.");
+        }
+        else
+        {
+            Console.WriteLine("Invalid option.");
+        }
+    }
+
+    // حساب المجاميع
+    static void CalculateTotals()
+    {
+        var customer = FindCustomer();
+
+        var totalDeposits = customer.Transactions
+            .Where(t => t.Type.Equals("Deposit", StringComparison.OrdinalIgnoreCase))
+            .Sum(t => t.Amount);
+
+        var totalWithdrawals = customer.Transactions
+            .Where(t => t.Type.Equals("Withdraw", StringComparison.OrdinalIgnoreCase))
+            .Sum(t => t.Amount);
+
+        Console.WriteLine($"Total Deposits: {totalDeposits}");
+        Console.WriteLine($"Total Withdrawals: {totalWithdrawals}");
+        Console.WriteLine($"Net Change: {totalDeposits - totalWithdrawals}");
+    }
+
+    static void ShowMessage(string msg) => Console.WriteLine($"[Alert] {msg}");
+} 
