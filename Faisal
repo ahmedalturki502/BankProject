@@ -1,0 +1,458 @@
+using System;                      // Provides basic classes (like Console, DateTime, Exception)
+using System.Collections.Generic;  // Allows the use of list 
+using System.IO;                   //For file read and write 
+using System.Linq;
+using static BankSystem;         //Can access nested classes directly Customer customer = new Customer(...);
+
+class BankSystem
+{
+    public abstract class Person  //Defines shared attributes for all "persons" like name and age., abstract cause it will never instantiated directly only inherited 
+    {
+        public Person(string name, int age)  //Calls the setters to validate and initialize name and age.
+        {
+            SetName(name);
+            SetAge(age);
+        }
+
+        private string name;
+        private int age;
+
+        public void SetName(string value)  //Validate non empty names 
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                name = value;
+            else
+                throw new ArgumentException("Name cannot be empty");
+        }
+
+        public void SetAge(int value)  //Ensure Age>=18 
+        {
+            if (value >= 18)
+                age = value;
+            else
+                throw new ArgumentException("Age must be at least 18");
+        }
+
+        public int GetAge() { return age; }
+        public string GetName() { return name; }
+
+        public override string ToString()   //Prints readiable object of person name and age
+        {
+            return $"Name: {name}, Age: {age}";
+        }
+    }
+
+    public class Transaction
+    {
+        private string TypeTransaction; //Deposit or Withdraw
+        private double Amount;         //Store amount of money that was either deposit , withdrawn 
+        private DateTime Data;
+
+        public Transaction(string TypeTransaction, double Amount)
+        {
+            SetTypeTransaction(TypeTransaction);    //Automatically set date DateTime.now
+            SetAmount(Amount);
+            SetDate(DateTime.Now);
+        }
+
+        public void SetTypeTransaction(string value) => TypeTransaction = value;
+        public void SetAmount(double value) => Amount = value;
+        public void SetDate(DateTime value) => Data = value;
+        public string GetTypeTransaction() => TypeTransaction;  //Mehods GetandSet for transaction, amount and time
+        public double GetAmount() => Amount;
+        public DateTime GetDate() => Data;
+
+        public override string ToString()   //Format date/time, type of transaction and amount 
+        {
+            return $"{Data:G} - {TypeTransaction}: {Amount:C}";
+        }
+    }
+
+    public class Customer : Person    //Class cutomer inherits from person, adds logic to the code 
+    {
+        private double balance; //Current money user have 
+        private List<Transaction> transactions;  //list of transactions 
+        public delegate void TransactionAlert(string message); //notify user when transaction accomplished 
+        public TransactionAlert alert;
+
+        public void SetBalance(double value) => balance = value;
+        public double GetBalance() => balance;
+
+        public Customer(string name, int age) : base(name, age)  //Customer constructor calls base of person constructor with these argument so no need of setting its arguments again
+        {
+            transactions = new List<Transaction>();              
+        }
+
+        public void Deposit(double amount) // Add balance to account , trigger alert when Deposit succsessful (amount must be greater than 50)
+        {
+            if (amount > 50)
+            {
+                balance += amount;
+                transactions.Add(new Transaction("Deposit", amount));
+                alert?.Invoke("Deposit Successful!");
+            }
+            else
+                throw new ArgumentException("Deposit amount must be positive.");
+        }
+
+        public void Withdraw(double amount) //Subtract from balance, amount of subtraction must be in balance, trigger alert when withdraw succ
+        {
+            if (amount > 0 && amount <= balance)
+            {
+                balance -= amount;
+                transactions.Add(new Transaction("Withdraw", amount));
+                alert?.Invoke($"Withdrawal of {amount:C} successful.");
+            }
+            else
+                throw new ArgumentException("Invalid amount or insufficient balance.");
+        }
+
+        public List<Transaction> GetTransactionHistory() => transactions;  //Gets the list of transactions 
+
+        public void SetTransactionHistory(List<Transaction> value)
+        {
+            transactions = value ?? new List<Transaction>(); //(??) if value not null assign value, if null assign new List<Transaction>(), ensure transaction never null
+        }
+
+        public List<Transaction> FilterTransactionsByType(string type) //Filter by deposit withdraw using linq
+        {
+            var result = from t in transactions
+                         where t.GetTypeTransaction().Equals(type, StringComparison.OrdinalIgnoreCase)
+                         select t;
+            return result.ToList();
+        }
+
+        public List<Transaction> FilterTransactionsBetweenDates(DateTime startDate, DateTime endDate) //Filter by date rage using linq
+        {
+            var result = from t in transactions
+                         where t.GetDate().Date >= startDate.Date && t.GetDate().Date <= endDate.Date
+                         select t;
+            return result.ToList();
+        }
+    }
+
+    public class Account
+    {                                       //folder path where account file are saved 
+        private static readonly string folderPath = "C:\\Users\\Falangari\\Desktop\\Sure Analysis\\Training Work\\My work\\BankFiles";
+        private string AccountNumber;   //Id of the account number 
+        private Customer owner; // * owner is person who owns bank account so its represented as customer object 
+
+        public Account(string AccountNumber, Customer owner)    //Constructor stores passed value 
+        {
+            this.AccountNumber = AccountNumber;
+            this.owner = owner;
+        }
+        public static Account LoadFromFile(string accNumber)    //Reads files based on account number 
+        {
+            string path = Path.Combine("C:\\Users\\Falangari\\Desktop\\Sure Analysis\\Training Work\\My work\\BankFiles", $"{accNumber}.txt");
+
+            if (!File.Exists(path))
+            {
+                Console.WriteLine(" Account file not found.");
+                return null;
+            }
+
+            string[] lines = File.ReadAllLines(path); //Reads the text file line by line into the array 
+            string name = "";   //Temporary variables to store info from file 
+            int age = 0;
+            double balance = 0;
+            List<BankSystem.Transaction> transactions = new();
+
+            foreach (string line in lines)
+            {
+                if (line.StartsWith("Owner:"))       // if line starts with owner 
+                    name = line.Substring(7).Trim(); // Extreact name part after "Owner:" , Trim() remove any extra spaces  
+                else if (line.StartsWith("Age:"))    //if line start with age 
+                    age = int.Parse(line.Substring(5).Trim());  //Extract age after (Age:) and convert it to int 
+                else if (line.StartsWith("Balance:")) //if line starts with balance 
+                {
+                    string amountStr = line.Substring(9).Trim().Replace("$", "").Replace(",", ""); //Gets the number part of the balance and convert to double 
+                    balance = double.Parse(amountStr);  //Convert string balance into double 
+                }
+                else if (line.Contains(" - Deposit:") || line.Contains(" - Withdraw:")) // if line contain transaction 
+                {
+                    // Parse transaction line
+                    string[] parts = line.Split(" - ");            //split to date 
+                    DateTime date = DateTime.Parse(parts[0]);      //part[0] Date String 
+
+                    string[] transParts = parts[1].Split(":");      //split to  type
+                    string type = transParts[0];
+                    double amount = double.Parse(transParts[1].Replace("$", "").Trim()); //part[1] transaction details
+
+                    var t = new BankSystem.Transaction(type, amount);    //if split occur creates a full Customer object and wraps it into a new Account.
+                    t.SetDate(date);  // overwrite current timestamp       
+                    transactions.Add(t);
+                }
+            }
+
+            // Build the customer and account
+            var customer = new BankSystem.Customer(name, age); //Creates a new Customer using the name and age found earlier.
+            customer.SetBalance(balance);
+            customer.SetTransactionHistory(transactions);
+            Account loadedAcc = new Account(accNumber, customer); //Create a new Account object which contain accNumber and Customer 
+
+            return loadedAcc; //return Account object
+        }
+
+        
+        public void setAccount(string value) => AccountNumber = value;
+        public Customer getOwner() => owner;
+        public void SetOwner(Customer value) => owner = value;
+        public string GetAccountNumber() => AccountNumber;
+
+        public void CreateAccountFile()  //Used when you create create a new account for the 1st time 
+        {
+            string content = $"Account Number: {AccountNumber}\n"; //Creates a string variable named content.
+            Directory.CreateDirectory(folderPath); //Checks if folder exists, if not it create one 
+            string path = Path.Combine(folderPath, $"{AccountNumber}.txt"); //Combine folderpath with file name dsfb/dfv/g/0001.txt
+            content += $"Owner: {owner.GetName()}\n"; //Adds customer name to the content string 
+            content += $"Age: {owner.GetAge()}\n";    //Adds Customer name to the content age 
+            content += $"Balance: {owner.GetBalance():C}\n"; //Adds the balance, formatted as currency. :C formats it like $1,000.00.
+            content += "Transactions:\n";  // Adds a section header for the transaction list.
+            foreach (var t in owner.GetTransactionHistory()) //loops all transactions
+                content += t.ToString() + "\n";  //t.ToString() format each transaction as "7/14/2025 2:00 PM - Deposit: $500.00"
+            File.WriteAllText(path, content); // Writes the complete content string to the file.
+        }
+
+        public void UpdateAccountFile() //Same as method CreateAccountFile() but meant to update existing accounts 
+        {
+            string content = $"Account Number: {AccountNumber}\n";
+            Directory.CreateDirectory(folderPath);
+            string path = Path.Combine(folderPath, $"{AccountNumber}.txt");
+            content += $"Owner: {owner.GetName()}\n";
+            content += $"Age: {owner.GetAge()}\n";
+            content += $"Balance: {owner.GetBalance():C}\n";
+            content += "Transactions:\n";
+            foreach (var t in owner.GetTransactionHistory())
+                content += t.ToString() + "\n";
+            File.WriteAllText(path, content);
+        }
+
+        public static void ReadAccountFile(string AccountNumber) //Display the content of an account file 
+        {          //Builds the file path for the given account number.
+            string path = Path.Combine("C:\\Users\\Falangari\\Desktop\\Sure Analysis\\Training Work\\My work\\BankFiles", $"{AccountNumber}.txt");
+            if (File.Exists(path)) //if file exist 
+                Console.WriteLine(File.ReadAllText(path)); //If the file exists, it reads all the text and prints it to the console.
+            else
+                Console.WriteLine("Account file not found.");
+        }
+
+        public override string ToString()
+        {
+            return $"Account Number: {AccountNumber}, Owner: {owner.GetName()}";
+        }
+    }
+}
+
+public class BankData<T>  //generic class used to store and manage type of data 
+{
+    private List<T> data = new List<T>(); //Internally stores all the data in a List<T>.
+    public void Add(T item) => data.Add(item); //Add item to the list 
+    public void Remove(T item) => data.Remove(item);
+    public List<T> GetAll() => new List<T>(data);
+    public int Count() => data.Count; //Returns the number of items in the list. how many customer in the list 
+
+
+}
+
+public class BankUI
+{              //This is the location where .txt files (account data) are stored. static readonly means cant change when runtime
+
+    private static readonly string folderPath = "C:\\Users\\Falangari\\Desktop\\Sure Analysis\\Training Work\\My work\\BankFiles";
+    private static string GenerateAccountNumber() //This generates a unique account number by counting the existing .txt files.
+    {
+        Directory.CreateDirectory(folderPath); //Make sure folder exist 
+
+        string[] files = Directory.GetFiles(folderPath, "*.txt"); //Gets all .txt files (each file = one account)
+
+        int nextNumber = files.Length; // become the next available number 3 
+
+        return nextNumber.ToString("D4"); // Convert 3 into 0004 4 digit format 
+    }
+
+    public static void Run() //Entry point for user menu
+
+    {
+        while (true)
+        {
+            Console.Clear();
+            Console.WriteLine("Welcome to Sure Bank");
+            Console.WriteLine("1. Create New Account");
+            Console.WriteLine("2. Deposit Money");
+            Console.WriteLine("3. Withdraw Money");
+            Console.WriteLine("4. View Balance");
+            Console.WriteLine("5. View All Transactions");
+            Console.WriteLine("6. Filter Transactions by Type");
+            Console.WriteLine("7. Filter Transaction by Date ");
+            Console.WriteLine("8. Exit");
+            Console.Write("Choose an option: ");
+            string choice = Console.ReadLine();
+
+            switch (choice)
+            {
+                case "1":
+                    CreateAccount();
+                    break;
+                case "2":
+                    PerformTransaction("deposit");
+                    break;
+                case "3":
+                    PerformTransaction("withdraw");
+                    break;
+                case "4":
+                    ViewBalance();
+                    break;
+                case "5":
+                    ViewTransactions();
+                    break;
+                case "6":
+                    FilterTransactions();
+                    break;
+                case "7":
+                    FilterTransactionsByDate();
+                    break;
+                case "8":
+                    return;
+                default:
+                    Console.WriteLine("Invalid choice. Try again.");
+                    break;
+            }
+
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+        }
+    }
+
+    private static void CreateAccount() //Create account from user input 
+    {
+        string accNum = GenerateAccountNumber(); //Generate a unique ID 0003
+        Console.WriteLine($"Generated Account Number: {accNum}");
+
+        Console.Write("Enter Customer Name: ");
+        string name = Console.ReadLine();
+
+        Console.Write("Enter Age: ");
+        int age = int.Parse(Console.ReadLine());
+
+        Customer customer = new Customer(name, age); //Create a new customer and assign a delegate that prints alerts
+        customer.alert = msg => Console.WriteLine(msg);
+
+        Account account = new Account(accNum, customer);   //Create a new file and save it into .txt file
+       
+        account.CreateAccountFile();
+
+        Console.WriteLine("Account Created Successfully!");
+        Console.ReadKey();
+    }
+
+    private static Account FindAccount()
+    {
+        Console.Write("Enter Account Number: ");
+        string accNum = Console.ReadLine();
+        return Account.LoadFromFile(accNum);
+    }
+
+    private static void PerformTransaction(string type)
+    {
+        Account account = FindAccount();
+        if (account == null)
+        {
+            Console.WriteLine("Account not found.");
+            return;
+        }
+        
+
+    Console.Write("Enter amount: ");
+        double amount = double.Parse(Console.ReadLine());
+
+        if (type == "deposit")
+            account.getOwner().Deposit(amount);
+        else
+            account.getOwner().Withdraw(amount);
+
+        account.UpdateAccountFile();
+        Console.WriteLine($"{type.ToUpper()} Successful!");
+    }
+
+    private static void ViewBalance()
+    {
+        Account account = FindAccount();
+        if (account == null)
+        {
+            Console.WriteLine("Account not found.");
+            return;
+        }
+
+        Console.WriteLine($"Balance: {account.getOwner().GetBalance():C}");
+    }
+
+    private static void ViewTransactions()
+    {
+        Account account = FindAccount();
+        if (account == null)
+        {
+            Console.WriteLine("Account not found.");
+            return;
+        }
+
+        foreach (var t in account.getOwner().GetTransactionHistory())
+        {
+            Console.WriteLine(t.ToString());
+        }
+    }
+
+    private static void FilterTransactions()
+    {
+        Account account = FindAccount();
+        if (account == null)
+        {
+            Console.WriteLine("Account not found.");
+            return;
+        }
+
+        Console.Write("Enter transaction type (Deposit/Withdraw): ");
+        string type = Console.ReadLine();
+        var filtered = account.getOwner().FilterTransactionsByType(type);
+
+        foreach (var t in filtered)
+        {
+            Console.WriteLine(t.ToString());
+        }
+    }
+    private static void FilterTransactionsByDate()
+    {
+        Account account = FindAccount();
+        if (account == null)
+        {
+            Console.WriteLine("Account not found.");
+            return;
+        }
+
+        Console.Write("Enter start date (yyyy-MM-dd): ");
+        DateTime start = DateTime.Parse(Console.ReadLine());
+
+        Console.Write("Enter end date (yyyy-MM-dd): ");
+        DateTime end = DateTime.Parse(Console.ReadLine());
+
+        var filtered = account.getOwner().FilterTransactionsBetweenDates(start, end);
+
+        if (filtered.Count == 0)
+        {
+            Console.WriteLine("No transactions found in this date range.");
+            return;
+        }
+
+        foreach (var t in filtered)
+        {
+            Console.WriteLine(t.ToString());
+        }
+    }
+}
+
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        BankUI.Run();
+    }
+}
