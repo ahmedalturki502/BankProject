@@ -1,0 +1,568 @@
+using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace EFDemo.Migrations
+{
+    /// <inheritdoc />
+    public partial class initialmigration : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+         //   migrationBuilder.Sql("INSERT INTO Customers VALUES ('Name1') ");
+            migrationBuilder.CreateTable(
+                name: "Customers",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Age = table.Column<int>(type: "int", nullable: false),
+                    Balance = table.Column<double>(type: "float", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Customers", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Transactions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TypeTransaction = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Amount = table.Column<double>(type: "float", nullable: false),
+                    Date = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CustomerId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Transactions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Transactions_Customers_CustomerId",
+                        column: x => x.CustomerId,
+                        principalTable: "Customers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Transactions_CustomerId",
+                table: "Transactions",
+                column: "CustomerId");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropTable(
+                name: "Transactions");
+
+            migrationBuilder.DropTable(
+                name: "Customers");
+           // migrationBuilder.Sql("DELETE FROM Customers WHERE Name = 'Name1'");
+        }
+    }
+}
+
+using System;
+using EFDemo.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
+#nullable disable
+
+namespace EFDemo.Migrations
+{
+    [DbContext(typeof(AppDbContext))]
+    partial class AppDbContextModelSnapshot : ModelSnapshot
+    {
+        protected override void BuildModel(ModelBuilder modelBuilder)
+        {
+#pragma warning disable 612, 618
+            modelBuilder
+                .HasAnnotation("ProductVersion", "9.0.7")
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("EFDemo.Models.Customer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Age")
+                        .HasColumnType("int");
+
+                    b.Property<double>("Balance")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Customers");
+                });
+
+            modelBuilder.Entity("EFDemo.Models.Transaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("Amount")
+                        .HasColumnType("float");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TypeTransaction")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("Transactions");
+                });
+
+            modelBuilder.Entity("EFDemo.Models.Transaction", b =>
+                {
+                    b.HasOne("EFDemo.Models.Customer", "Customer")
+                        .WithMany("Transactions")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("EFDemo.Models.Customer", b =>
+                {
+                    b.Navigation("Transactions");
+                });
+#pragma warning restore 612, 618
+        }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace EFDemo.Models
+{
+    public class Account
+    {
+        [Key]
+        public string AccountNumber { get; set; }
+
+        [ForeignKey("Customer")]
+        public int CustomerId { get; set; }
+
+        public virtual Customer Customer { get; set; }
+    }
+}
+
+using Microsoft.EntityFrameworkCore;
+
+namespace EFDemo.Models
+{
+    public class AppDbContext : DbContext
+    {
+        public DbSet<Customer> Customers { get; set; }
+        public DbSet<Transaction> Transactions { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer("Data Source=.\\SQLEXPRESS;Initial Catalog=EFCoreTest;Persist Security Info=True;User ID=sa;Password=P@ssword123;Trust Server Certificate=True");
+
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            // Setup the 1-to-many relationship between Customer and Transactions
+            modelBuilder.Entity<Customer>()
+                        .HasMany(c => c.Transactions)
+                        .WithOne(t => t.Customer)
+                        .HasForeignKey(t => t.CustomerId)
+                        .OnDelete(DeleteBehavior.Cascade);
+
+            base.OnModelCreating(modelBuilder);
+        }
+    }
+}
+
+using EFDemo.Models;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+public class BankUI
+{
+
+    public  void CreateAccount()
+    {
+        Console.Write("Enter Customer Name: ");
+        string name = Console.ReadLine();
+
+        Console.Write("Enter Age: ");
+        int age = int.Parse(Console.ReadLine());
+
+        Customer customer = new Customer
+        {
+            Name = name,
+            Age = age,
+            Balance = 0
+        };
+
+        using (var context = new AppDbContext())
+        {
+            context.Customers.Add(customer);
+            context.SaveChanges();
+        }
+
+        Console.WriteLine("Account created successfully!");
+        Console.WriteLine($"Customer ID (used as account number): {customer.Id}");
+    }
+    public  void Deposit()
+    {
+        Console.Write("Enter Customer ID: ");
+        int id = int.Parse(Console.ReadLine());
+
+        var customer = FindCustomerById(id);
+
+        if (customer == null)
+        {
+            Console.WriteLine("Customer not found.");
+            return;
+        }
+
+        Console.Write("Enter deposit amount: ");
+        double amount = double.Parse(Console.ReadLine());
+
+        if (amount <= 50)
+        {
+            Console.WriteLine("Deposit must be more than 50.");
+            return;
+        }
+
+        customer.Balance += amount;
+
+        var transaction = new Transaction
+        {
+            TypeTransaction = "Deposit",
+            Amount = amount,
+            Date = DateTime.Now,
+            CustomerId = customer.Id
+        };
+
+        using (var context = new AppDbContext())
+        {
+            context.Customers.Update(customer);
+            context.Transactions.Add(transaction);
+            context.SaveChanges();
+        }
+
+        Console.WriteLine("Deposit successful.");
+    }
+    public  void Withdraw()
+    {
+        Console.Write("Enter Customer ID: ");
+        int id = int.Parse(Console.ReadLine());
+
+        var customer = FindCustomerById(id);
+
+        if (customer == null)
+        {
+            Console.WriteLine("Customer not found.");
+            return;
+        }
+
+        Console.Write("Enter withdrawal amount: ");
+        double amount = double.Parse(Console.ReadLine());
+
+        if (amount <= 0 || amount > customer.Balance)
+        {
+            Console.WriteLine("Invalid or insufficient balance.");
+            return;
+        }
+
+        customer.Balance -= amount;
+
+        var transaction = new Transaction
+        {
+            TypeTransaction = "Withdraw",
+            Amount = amount,
+            Date = DateTime.Now,
+            CustomerId = customer.Id
+        };
+
+        using (var context = new AppDbContext())
+        {
+            context.Customers.Update(customer);
+            context.Transactions.Add(transaction);
+            context.SaveChanges();
+        }
+
+        Console.WriteLine("Withdrawal successful.");
+    }
+    public  Customer FindCustomerById(int id)
+    {
+        using (var context = new AppDbContext())
+        {
+            return context.Customers
+                          .Include(c => c.Transactions)
+                          .FirstOrDefault(c => c.Id == id);
+        }
+    }
+    public  void ViewTransactions()
+    {
+        Console.Write("Enter Customer ID: ");
+        int id = int.Parse(Console.ReadLine());
+
+        var customer = FindCustomerById(id);
+
+        if (customer == null)
+        {
+            Console.WriteLine("Customer not found.");
+            return;
+        }
+
+        Console.WriteLine($"Transactions for {customer.Name}:");
+
+        foreach (var t in customer.Transactions)
+        {
+            Console.WriteLine($"{t.Date:g} - {t.TypeTransaction}: {t.Amount:C}");
+        }
+    }
+    public  void FilterTransactionsByType()
+    {
+        Console.Write("Enter Customer ID: ");
+        int id = int.Parse(Console.ReadLine());
+
+        Console.Write("Enter transaction type (Deposit/Withdraw): ");
+        string type = Console.ReadLine();
+
+        using var context = new AppDbContext();
+        var transactions = context.Transactions
+                                  .Where(t => t.CustomerId == id && t.TypeTransaction == type)
+                                  .OrderBy(t => t.Date)
+                                  .ToList();
+
+        if (transactions.Count == 0)
+        {
+            Console.WriteLine("No transactions found.");
+            return;
+        }
+
+        foreach (var t in transactions)
+        {
+            Console.WriteLine($"{t.Date:g} - {t.TypeTransaction}: {t.Amount:C}");
+        }
+    }
+    public  void FilterTransactionsByDate()
+    {
+        Console.Write("Enter Customer ID: ");
+        int id = int.Parse(Console.ReadLine());
+
+        Console.Write("Enter start date (yyyy-MM-dd): ");
+        DateTime start = DateTime.Parse(Console.ReadLine());
+
+        Console.Write("Enter end date (yyyy-MM-dd): ");
+        DateTime end = DateTime.Parse(Console.ReadLine());
+
+        using var context = new AppDbContext();
+        var transactions = context.Transactions
+                                  .Where(t => t.CustomerId == id &&
+                                              t.Date.Date >= start.Date &&
+                                              t.Date.Date <= end.Date)
+                                  .OrderBy(t => t.Date)
+                                  .ToList();
+
+        if (transactions.Count == 0)
+        {
+            Console.WriteLine("No transactions found in this range.");
+            return;
+        }
+
+        foreach (var t in transactions)
+        {
+            Console.WriteLine($"{t.Date:g} - {t.TypeTransaction}: {t.Amount:C}");
+        }
+    }
+    public  void ViewBalance()
+    {
+        Console.Write("Enter Customer ID: ");
+        int id = int.Parse(Console.ReadLine());
+
+        var customer = FindCustomerById(id);
+
+        if (customer == null)
+        {
+            Console.WriteLine("Customer not found.");
+            return;
+        }
+
+        Console.WriteLine($"Customer: {customer.Name}");
+        Console.WriteLine($"Balance: {customer.Balance:C}");
+    }
+
+}
+
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace EFDemo.Models
+{
+    public class Customer : Person
+    {
+        [Key]
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public int Age { get; set; }
+
+        public double Balance { get; set; }
+
+        public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace EFDemo.Models
+{
+    public abstract class Person
+    {
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        public string Name { get; set; }
+
+        [Range(18, int.MaxValue, ErrorMessage = "Age must be at least 18.")]
+        public int Age { get; set; }
+
+        public override string ToString() => $"Name: {Name}, Age: {Age}";
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace EFDemo.Models
+{
+    public class BankApp
+    {
+        private readonly BankUI ui;
+
+        public BankApp()
+        {
+            ui = new BankUI();
+        }
+
+        public void Run()
+        {
+            while (true)
+            {
+                Console.Clear();
+                Console.WriteLine("Welcome to Sure Bank");
+                Console.WriteLine("1. Create New Account");
+                Console.WriteLine("2. Deposit Money");
+                Console.WriteLine("3. Withdraw Money");
+                Console.WriteLine("4. View Balance");
+                Console.WriteLine("5. View All Transactions");
+                Console.WriteLine("6. Filter Transactions by Type");
+                Console.WriteLine("7. Filter Transactions by Date");
+                Console.WriteLine("8. Exit");
+                Console.Write("Choose an option: ");
+                string choice = Console.ReadLine();
+
+                switch (choice)
+                {
+                    case "1": ui.CreateAccount(); break;
+                    case "2": ui.Deposit(); break;
+                    case "3": ui.Withdraw(); break;
+                    case "4": ui.ViewBalance(); break;
+                    case "5": ui.ViewTransactions(); break;
+                    case "6": ui.FilterTransactionsByType(); break;
+                    case "7": ui.FilterTransactionsByDate(); break;
+                    case "8": return;
+                    default: Console.WriteLine("Invalid choice."); break;
+                }
+
+                Console.WriteLine("Press Enter to continue...");
+                Console.ReadLine();
+            }
+        }
+    }
+}
+
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace EFDemo.Models
+{
+    public class Transaction
+    {
+        [Key]
+        public int Id { get; set; }
+
+        public string TypeTransaction { get; set; }
+
+        public double Amount { get; set; }
+
+        public DateTime Date { get; set; } = DateTime.Now;
+
+        [ForeignKey("Customer")]
+        public int CustomerId { get; set; }
+
+        public virtual Customer Customer { get; set; }
+    }
+}
+
+namespace EFDemo.Models
+{
+    class main
+    {
+        static void Main(string[] args)
+        {
+            BankApp app = new BankApp();
+            app.Run();
+        }
+    }
+}
