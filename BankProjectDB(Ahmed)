@@ -1,0 +1,582 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using BankProjectE.models;
+using Microsoft.EntityFrameworkCore;
+
+public delegate void TransactionAlert(string message);   //Delegates to show message
+
+
+
+class BankService
+{
+    private AppDbContext dbContext;
+    private TransactionAlert alert;
+    private Random random;
+
+    public BankService(TransactionAlert alert)
+    {
+        this.dbContext = new AppDbContext();
+        this.alert = alert;
+        this.random = new Random();
+    }
+
+    private string GenerateRandomAccountNumber()
+    {
+        string accountNumber;
+        do
+        {
+            // Generate a random 8-digit account number
+            accountNumber = random.Next(10000000, 99999999).ToString();
+        } while (dbContext.Customers.Any(c => c.AccountNumber == accountNumber));
+        
+        return accountNumber;
+    }
+
+    public void CreateAccount(string name, int age)
+    {
+        string accountNumber = GenerateRandomAccountNumber();
+        var customer = new Customer { Name = name, Age = age, Balance = 0, AccountNumber = accountNumber };
+        dbContext.Customers.Add(customer);
+        dbContext.SaveChanges();
+        alert?.Invoke($"Account created successfully! Account Number: {accountNumber}");
+    }
+
+    public void Deposit(Customer customer, decimal amount)
+    {
+        customer.Balance += amount;
+        var transaction = new Transaction 
+        { 
+            Date = DateTime.Now, 
+            Type = "Deposit", 
+            Amount = amount,
+            CustomerId = customer.Id
+        };
+        dbContext.Transactions.Add(transaction);
+        dbContext.SaveChanges();
+        alert?.Invoke("Deposit successful!");
+    }
+
+    public void Withdraw(Customer customer, decimal amount)
+    {
+        if (amount > customer.Balance)
+            throw new Exception("Insufficient balance");
+
+        customer.Balance -= amount;
+        var transaction = new Transaction 
+        { 
+            Date = DateTime.Now, 
+            Type = "Withdraw", 
+            Amount = amount,
+            CustomerId = customer.Id
+        };
+        dbContext.Transactions.Add(transaction);
+        dbContext.SaveChanges();
+        alert?.Invoke("Withdraw successful!");
+    }
+
+    // search operators
+    public Customer? FindCustomerByName(string name)
+    {
+        return dbContext.Customers
+            .Include(c => c.Transactions)
+            .Where(c => c.Name.ToLower() == name.ToLower())
+            .FirstOrDefault();
+    }
+
+    public Customer? FindCustomerByAccount(string accountNumber)
+    {
+        return dbContext.Customers
+            .Include(c => c.Transactions)
+            .FirstOrDefault(c => c.AccountNumber == accountNumber);
+    }
+
+    public List<Customer> GetAllCustomers()
+    {
+        return dbContext.Customers
+            .Include(c => c.Transactions)
+            .ToList();
+    }
+
+    public List<Transaction> GetAllTransactions()
+    {
+        return dbContext.Transactions
+            .Include(t => t.Customer)
+            .OrderByDescending(t => t.Date)
+            .ToList();
+    }
+
+    //filter operations
+    public List<Transaction> FilterTransactionsByDate(Customer customer, DateTime date)
+    {
+        return dbContext.Transactions
+            .Where(t => t.CustomerId == customer.Id && t.Date.Date == date.Date)
+            .ToList();
+    }
+
+    public List<Transaction> FilterTransactionsByType(Customer customer, string type)
+    {
+        return dbContext.Transactions
+            .Where(t => t.CustomerId == customer.Id && t.Type.ToLower() == type.ToLower())
+            .ToList();
+    }
+
+    //calculate operations
+    public (decimal deposits, decimal withdrawals) CalculateTotals(Customer customer)
+    {
+        var totalDeposits = dbContext.Transactions
+            .Where(t => t.CustomerId == customer.Id && t.Type.ToLower() == "deposit")
+            .Sum(t => t.Amount);
+
+        var totalWithdrawals = dbContext.Transactions
+            .Where(t => t.CustomerId == customer.Id && t.Type.ToLower() == "withdraw")
+            .Sum(t => t.Amount);
+
+        return (totalDeposits, totalWithdrawals);
+    }
+
+    public bool RemoveAccountByAccountNumber(string? accountNumber)
+    {
+        if (string.IsNullOrWhiteSpace(accountNumber))
+            return false;
+        var customer = dbContext.Customers.Include(c => c.Transactions).FirstOrDefault(c => c.AccountNumber == accountNumber);
+        if (customer == null)
+            return false;
+        dbContext.Customers.Remove(customer);
+        dbContext.SaveChanges();
+        return true;
+    }
+
+    public bool RemoveAccountByName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+        var customer = dbContext.Customers.Include(c => c.Transactions).Where(c => c.Name.ToLower() == name.ToLower()).FirstOrDefault();
+        if (customer == null)
+            return false;
+        dbContext.Customers.Remove(customer);
+        dbContext.SaveChanges();
+        return true;
+    }
+
+    public void Dispose()
+    {
+        dbContext?.Dispose();
+    }
+}
+
+class UserInterface
+{
+    private BankService bankService;
+    private TransactionAlert alert;
+
+    public UserInterface(BankService bankService, TransactionAlert alert)
+    {
+        this.bankService = bankService;
+        this.alert = alert;
+    }
+
+    public void ShowMainMenu()
+    {
+        while (true)
+        {
+            Console.WriteLine("\n=== BANK SYSTEM ===");
+            Console.WriteLine("1. Customer Login");
+            Console.WriteLine("2. Admin Login");
+            Console.WriteLine("3. Exit");
+            Console.Write("Choose: ");
+
+            string choice = Console.ReadLine() ?? string.Empty;
+
+            switch (choice)
+            {
+                case "1":
+                    ShowCustomerMenu();
+                    break;
+                case "2":
+                    ShowAdminMenu();
+                    break;
+                case "3":
+                    return;
+                default:
+                    Console.WriteLine("Invalid choice");
+                    break;
+            }
+        }
+    }
+
+    private void ShowAdminMenu()
+    {
+        Console.WriteLine("\n=== ADMIN MENU ===");
+        Console.WriteLine("Welcome Admin!");
+
+        while (true)
+        {
+            Console.WriteLine("\n1. View all accounts");
+            Console.WriteLine("2. View all transactions");
+            Console.WriteLine("3. Search customer by name");
+            Console.WriteLine("4. Search customer by account number");
+            Console.WriteLine("5. Filter transactions");
+            Console.WriteLine("6. Calculate totals");
+            Console.WriteLine("7. Remove account");
+            Console.WriteLine("8. Back to main menu");
+            Console.Write("Choose: ");
+
+            string choice = Console.ReadLine() ?? string.Empty;
+
+            try
+            {
+                switch (choice)
+                {
+                    case "1": ViewAllAccounts(); break;
+                    case "2": ViewAllTransactions(); break;
+                    case "3": SearchCustomerByName(); break;
+                    case "4": SearchCustomerByAccount(); break;
+                    case "5": FilterTransactions(); break;
+                    case "6": CalculateTotals(); break;
+                    case "7": RemoveAccount(); break;
+                    case "8": return;
+                    default: Console.WriteLine("Invalid choice"); break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
+    }
+
+    private void ShowCustomerMenu()
+    {
+        Console.WriteLine("\n=== CUSTOMER MENU ===");
+
+        while (true)
+        {
+            Console.WriteLine("\n1. Create new account");
+            Console.WriteLine("2. Deposit");
+            Console.WriteLine("3. Withdraw");
+            Console.WriteLine("4. Show balance");
+            Console.WriteLine("5. Back to main menu");
+            Console.Write("Choose: ");
+
+            string choice = Console.ReadLine() ?? string.Empty;
+
+            try
+            {
+                switch (choice)
+                {
+                    case "1": CreateAccount(); break;
+                    case "2": Deposit(); break;
+                    case "3": Withdraw(); break;
+                    case "4": ShowBalance(); break;
+                    case "5": return;
+                    default: Console.WriteLine("Invalid choice"); break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
+    }
+
+    private void ViewAllAccounts()
+    {
+        Console.WriteLine("\n=== ALL ACCOUNTS ===");
+        var customers = bankService.GetAllCustomers();
+
+        if (customers.Count == 0)
+        {
+            Console.WriteLine("No accounts found.");
+            return;
+        }
+
+        foreach (var customer in customers)
+        {
+            Console.WriteLine($"Name: {customer.Name}, Account: {customer.AccountNumber}, Balance: {customer.Balance:C}");
+        }
+        Console.WriteLine($"Total Accounts: {customers.Count}");
+    }
+
+    private void ViewAllTransactions()
+    {
+        Console.WriteLine("\n=== ALL TRANSACTIONS ===");
+        var allTransactions = bankService.GetAllCustomers().SelectMany(c => c.Transactions.Select(t => new { Customer = c.Name, Transaction = t })).OrderByDescending(x => x.Transaction.Date).ToList();
+
+        if (allTransactions.Count == 0)
+        {
+            Console.WriteLine("No transactions found.");
+            return;
+        }
+
+        foreach (var item in allTransactions)
+        {
+            Console.WriteLine($"{item.Customer}: {item.Transaction}");
+        }
+        Console.WriteLine($"Total Transactions: {allTransactions.Count}");
+    }
+
+    private void SearchCustomerByName()
+    {
+        Console.Write("Enter Customer Name: ");
+        string name = Console.ReadLine() ?? string.Empty;
+
+        var customer = bankService.FindCustomerByName(name);
+        if (customer == null)
+        {
+            Console.WriteLine("Customer not found.");
+            return;
+        }
+
+        DisplayCustomerDetails(customer);
+    }
+
+    private void SearchCustomerByAccount()
+    {
+        Console.Write("Enter Account Number: ");
+        string accountNumber = Console.ReadLine() ?? string.Empty;
+
+        var customer = bankService.FindCustomerByAccount(accountNumber);
+        if (customer == null)
+        {
+            Console.WriteLine("Customer not found.");
+            return;
+        }
+
+        DisplayCustomerDetails(customer);
+    }
+
+    private void DisplayCustomerDetails(Customer customer)
+    {
+        Console.WriteLine("\n CUSTOMER DETAILS : ");
+        Console.WriteLine(customer);
+        Console.WriteLine("Transaction History:");
+        foreach (var transaction in customer.Transactions.OrderByDescending(t => t.Date))
+        {
+            Console.WriteLine($"  {transaction}");
+        }
+    }
+
+    private void CreateAccount()
+    {
+        Console.Write("Customer name: ");
+        string name = Console.ReadLine() ?? string.Empty;
+        Console.Write("Age: ");
+        if (!int.TryParse(Console.ReadLine() ?? string.Empty, out int age))
+            throw new Exception("Invalid age");
+
+        bankService.CreateAccount(name, age);
+    }
+
+    private void Deposit()
+    {
+        var customer = FindCustomer();
+        Console.Write("Amount: ");
+        if (!decimal.TryParse(Console.ReadLine() ?? string.Empty, out decimal amount) || amount <= 0)
+            throw new Exception("Invalid amount");
+
+        bankService.Deposit(customer, amount);
+    }
+
+    private void Withdraw()
+    {
+        var customer = FindCustomer();
+        Console.Write("Amount: ");
+        if (!decimal.TryParse(Console.ReadLine() ?? string.Empty, out decimal amount) || amount <= 0)
+            throw new Exception("Invalid amount");
+
+        bankService.Withdraw(customer, amount);
+    }
+
+    private void ShowBalance()
+    {
+        var customer = FindCustomer();
+        Console.WriteLine(customer);
+        Console.WriteLine("Transaction history:");
+        foreach (var t in customer.Transactions.OrderByDescending(t => t.Date))
+            Console.WriteLine(t);
+    }
+
+    private void RemoveAccount()
+    {
+        Console.WriteLine("Remove by (1) Account Number or (2) Name?");
+        string option = Console.ReadLine() ?? string.Empty;
+        bool result = false;
+        if (option == "1")
+        {
+            Console.Write("Enter Account Number: ");
+            string accNum = Console.ReadLine() ?? string.Empty;
+            result = bankService.RemoveAccountByAccountNumber(accNum);
+        }
+        else if (option == "2")
+        {
+            Console.Write("Enter Customer Name: ");
+            string name = Console.ReadLine() ?? string.Empty;
+            result = bankService.RemoveAccountByName(name);
+        }
+        else
+        {
+            Console.WriteLine("Invalid option.");
+            return;
+        }
+        if (result)
+            Console.WriteLine("Account removed successfully.");
+        else
+            Console.WriteLine("Account not found.");
+    }
+
+    private Customer FindCustomer()
+    {
+        Console.Write("Search by (1) Name or (2) Account Number? ");
+        string option = Console.ReadLine() ?? string.Empty;
+
+        if (option == "1")
+        {
+            Console.Write("Customer name: ");
+            string name = Console.ReadLine() ?? string.Empty;
+            var customer = bankService.FindCustomerByName(name);
+            if (customer == null)
+                throw new Exception("Customer not found");
+            return customer;
+        }
+        else if (option == "2")
+        {
+            Console.Write("Account Number: ");
+            string accNum = Console.ReadLine() ?? string.Empty;
+            var customer = bankService.FindCustomerByAccount(accNum);
+            if (customer == null)
+                throw new Exception("Customer not found");
+            return customer;
+        }
+        else
+        {
+            throw new Exception("Invalid option");
+        }
+    }
+
+    private void FilterTransactions()
+    {
+        var customer = FindCustomer();
+        Console.WriteLine("Filter by : 1) Date  2) Type");
+        string option = Console.ReadLine() ?? string.Empty;
+
+        if (option == "1")
+        {
+            Console.Write("Enter date (yyyy-MM-dd): ");
+            string dateInput = Console.ReadLine() ?? string.Empty;
+            if (DateTime.TryParse(dateInput, out DateTime date))
+            {
+                var filtered = bankService.FilterTransactionsByDate(customer, date);
+
+                Console.WriteLine($"Transactions on {date:yyyy-MM-dd}:");
+                foreach (var t in filtered)
+                    Console.WriteLine(t);
+
+                if (filtered.Count == 0)
+                    Console.WriteLine("No transactions found for this date.");
+            }
+            else
+            {
+                Console.WriteLine("Invalid date format.");
+            }
+        }
+        else if (option == "2")
+        {
+            Console.Write("Enter type (Deposit/Withdraw): ");
+            string type = Console.ReadLine() ?? string.Empty;
+            var filtered = bankService.FilterTransactionsByType(customer, type);
+
+            Console.WriteLine($"Transactions of type '{type}':");
+            foreach (var t in filtered)
+                Console.WriteLine(t);
+
+            if (filtered.Count == 0)
+                Console.WriteLine("No transactions found for this type.");
+        }
+        else
+        {
+            Console.WriteLine("Invalid option.");
+        }
+    }
+
+    private void CalculateTotals()
+    {
+        var customer = FindCustomer();
+        var (deposits, withdrawals) = bankService.CalculateTotals(customer);
+
+        Console.WriteLine($"Total Deposits: {deposits:C}");
+        Console.WriteLine($"Total Withdrawals: {withdrawals:C}");
+        Console.WriteLine($"Net Change: {(deposits - withdrawals):C}");
+    }
+}
+
+class Program
+{
+    static void Main()
+    {
+        Console.WriteLine("- DATABASE CONNECTION TEST -");
+        TestDatabaseConnection();
+        
+        Console.WriteLine("\n- STARTING BANK APPLICATION -");
+        TransactionAlert alert = ShowMessage;
+        BankService bankService = new BankService(alert);
+        UserInterface ui = new UserInterface(bankService, alert);
+
+        ui.ShowMainMenu();
+        
+        // Dispose of the database context when done
+        bankService.Dispose();
+    }
+    
+    static void TestDatabaseConnection()
+    {
+        try
+        {
+            Console.WriteLine("Testing database connection..");
+            Console.WriteLine("Connection string: server=localhost\\SQLEXPRESS;database=BankDataBase;user id=sa;password=P@ssw0rd@123;TrustServerCertificate=True");
+            Console.WriteLine();
+            
+            using (var context = new AppDbContext())
+            {
+                // Test the connection
+                context.Database.EnsureCreated();
+                
+                Console.WriteLine(" Database connection successful!");
+                Console.WriteLine($"Database: {context.Database.GetDbConnection().Database}");
+                Console.WriteLine($"Server: {context.Database.GetDbConnection().DataSource}");
+                Console.WriteLine($"Connection State: {context.Database.GetDbConnection().State}");
+                
+                // Test queries
+                var customerCount = context.Customers.Count();
+                Console.WriteLine($" Customer table accessible. Count: {customerCount}");
+                
+                var transactionCount = context.Transactions.Count();
+                Console.WriteLine($" Transaction table accessible. Count: {transactionCount}");
+                
+                Console.WriteLine(" All database tests passed!");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(" Database connection failed!");
+            Console.WriteLine($"Error: {ex.Message}");
+            
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner Error: {ex.InnerException.Message}");
+            }
+            
+            Console.WriteLine("\nPossible solutions:");
+            Console.WriteLine("1. Make sure SQL Server Express is running");
+            Console.WriteLine("2. Check if the database 'BankDataBase' exists");
+            Console.WriteLine("3. Verify SQL Server authentication credentials (sa/P@ssw0rd@123)");
+            Console.WriteLine("4. Check if SQL Server Express is accessible on localhost\\SQLEXPRESS");
+            Console.WriteLine("5. Verify SQL Server is configured for SQL authentication (not just Windows auth)");
+            
+            Console.WriteLine("\nPress any key to continue anyway...");
+            Console.ReadKey();
+        }
+    }
+
+    static void ShowMessage(string msg) => Console.WriteLine($"[Alert] {msg}");
+}
